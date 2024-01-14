@@ -17,8 +17,10 @@ public class JMSManager {
     private ActiveMQQueue queueCheck;
     private Consumer<Transaction> transactionConsumer;
     private Consumer<String> textMessagConsumer;
+    private String localName;
 
     public JMSManager(String localName) throws JMSException{
+        this.localName = localName;
         this.queueCheck = new ActiveMQQueue();
         try {
             this.connectionFactory = new ActiveMQConnectionFactory("tcp://localhost:61616");
@@ -26,16 +28,26 @@ public class JMSManager {
             this.connectionFactory.setTrustedPackages(Arrays.asList("projet_sd"));
             this.connection = connectionFactory.createConnection();
             this.connection.start();
+            //etre notifié des problemes de connexion JMS
+            connection.setExceptionListener(new ExceptionListener(){
+                @Override
+                public void onException(JMSException e){
+                    System.err.println("Un problème de connexion a été détecté: " + e.getMessage());
+                    reconnect();
+                }
+            });
             this.session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
-            this.srcQueue = session.createQueue(localName);
+            this.srcQueue = session.createQueue(this.localName);
             this.consumer = session.createConsumer(srcQueue);
+            startListening();
         } catch (Exception e) {
             // TODO: handle exception
             System.out.println("Caught: " + e);
             e.printStackTrace();
         }
-        startListening();
+        
     }
+
 
 
     public void setTransactionConsumer(Consumer<Transaction> transactionConsumer){
@@ -162,5 +174,39 @@ public class JMSManager {
             }
         });
     }
+
+    //tentative de reconnexion
+    private void reconnect(){
+        int max = 5;
+        for(int i=0; i < max; i++){
+            try{
+                System.out.println("Tentative de reconnexion (" + (i+1) + "/" + max + ")");
+                connection = connectionFactory.createConnection();
+                connection.setExceptionListener(new ExceptionListener(){
+                    @Override
+                    public void onException(JMSException e){
+                        System.err.println("Un problème de connexion a été détecté: " + e.getMessage());
+                        reconnect();
+                    }
+                });
+                connection.start();
+                session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+                srcQueue = session.createQueue(localName);
+                consumer = session.createConsumer(srcQueue);
+                startListening();
+                System.out.println("Reconnexion réussie");
+                return;
+            } catch(JMSException e){
+                System.err.println("La reconnexion a échoué: " + e.getMessage());
+                try {
+                    Thread.sleep(5000);
+                } catch (InterruptedException ignored) {
+                    // TODO: handle exception
+                }
+            }
+        }
+        System.err.println("La reconnexion a échoué après " + max + " tentatives");
+    }
+
 }
 
