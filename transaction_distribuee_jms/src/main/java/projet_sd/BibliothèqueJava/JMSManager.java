@@ -1,4 +1,6 @@
-package projet_sd;
+package projet_sd.BibliothèqueJava;
+
+
 
 import java.io.Serializable;
 import java.util.Arrays;
@@ -6,6 +8,8 @@ import java.util.function.Consumer;
 
 import javax.jms.*;
 import org.apache.activemq.ActiveMQConnectionFactory;
+
+import projet_sd.Transaction;
 
 public class JMSManager {
     private ActiveMQConnectionFactory connectionFactory;
@@ -68,6 +72,7 @@ public class JMSManager {
 
 
     public void sendTextMessage(String text, String destination) throws JMSException{
+        //long start = System.nanoTime();
         String brokerJmxUrl = "service:jmx:rmi:///jndi/rmi://localhost:1099/jmxrmi";
         if(queueCheck.checkQueueExists(brokerJmxUrl, destination)){
             try {
@@ -82,12 +87,14 @@ public class JMSManager {
         } else {
             System.out.println("la destination n'existe pas");
         }
-        
+        //long end = System.nanoTime();
+        //System.out.println("la durée de l'envoi d'un text message: " + (end - start));
     }
 
 
 
     public void sendObjectMessage(Serializable object, String destination) throws JMSException{
+        //long start = System.nanoTime();
         String brokerJmxUrl = "service:jmx:rmi:///jndi/rmi://localhost:1099/jmxrmi";
         if(queueCheck.checkQueueExists(brokerJmxUrl, destination)){
             try {
@@ -104,9 +111,12 @@ public class JMSManager {
         } else {
             System.out.println("La destination n'existe pas");
         }
+        //long end = System.nanoTime();
+        //System.out.println("la durée de l'envoi d'un object message: " + (end - start));
     }
 
     public void startListening() throws JMSException{
+        //long start = System.nanoTime();
         consumer.setMessageListener(message -> {
             try {
                 Thread.sleep(10000);
@@ -131,6 +141,8 @@ public class JMSManager {
                 }
             
         });
+        //long end = System.nanoTime();
+        //System.out.println("la durée de reception est: " + (end - start));
     }
 
     //tentative de reconnexion

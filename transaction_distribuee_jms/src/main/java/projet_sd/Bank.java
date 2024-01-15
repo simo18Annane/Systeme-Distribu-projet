@@ -9,6 +9,8 @@ import java.util.Set;
 
 import javax.jms.JMSException;
 
+import projet_sd.BibliothèqueJava.JMSManager;
+
 public class Bank {
     private String name;
     private Map<Integer, BankAccount> accounts;
@@ -167,6 +169,10 @@ public class Bank {
         getAccount(transaction.getSourceAccount()).withdraw(transaction.getAmount());
         getAccount(transaction.getSourceAccount()).addTransactionHistory(transaction.descSource());
         
+    }
+
+    public void closeConnexionJMS() throws JMSException{
+        this.jmsmanager.closeSessionConnection();
     }
 
 }

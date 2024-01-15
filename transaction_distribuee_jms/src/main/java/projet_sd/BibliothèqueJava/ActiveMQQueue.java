@@ -1,4 +1,4 @@
-package projet_sd;
+package projet_sd.BibliothèqueJava;
 
 import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
