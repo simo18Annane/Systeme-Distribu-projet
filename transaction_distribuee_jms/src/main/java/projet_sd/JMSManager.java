@@ -18,6 +18,7 @@ public class JMSManager {
     private Consumer<Transaction> transactionConsumer;
     private Consumer<String> textMessagConsumer;
     private String localName;
+    private boolean checkServer;
 
     public JMSManager(String localName) throws JMSException{
         this.localName = localName;
@@ -33,12 +34,14 @@ public class JMSManager {
                 @Override
                 public void onException(JMSException e){
                     System.err.println("Un problème de connexion a été détecté: " + e.getMessage());
+                    checkServer = false;
                     reconnect();
                 }
             });
             this.session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
             this.srcQueue = session.createQueue(this.localName);
             this.consumer = session.createConsumer(srcQueue);
+            this.checkServer = true;
             startListening();
         } catch (Exception e) {
             // TODO: handle exception
@@ -46,6 +49,11 @@ public class JMSManager {
             e.printStackTrace();
         }
         
+    }
+
+    public void closeSessionConnection() throws JMSException{
+        session.close();
+        connection.close();
     }
 
 
@@ -65,7 +73,7 @@ public class JMSManager {
             try {
                 Queue destQueue = session.createQueue(destination);
                 producer = session.createProducer(destQueue);
-                producer.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
+                producer.setDeliveryMode(DeliveryMode.PERSISTENT);
                 TextMessage message = session.createTextMessage(text);
                 producer.send(message);
             } catch (Exception e) {
@@ -85,7 +93,7 @@ public class JMSManager {
             try {
                 Queue destQueue = session.createQueue(destination);
                 producer = session.createProducer(destQueue);
-                producer.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
+                producer.setDeliveryMode(DeliveryMode.PERSISTENT);
                 ObjectMessage message = session.createObjectMessage(object);
                 message.setObject(object);
                 producer.send(message);
@@ -98,80 +106,30 @@ public class JMSManager {
         }
     }
 
-/* 
-    public void startListening() throws JMSException{
-        consumer.setMessageListener(new MessageListener(){
-            @Override
-            public void onMessage(Message message){
-                if(message instanceof TextMessage){
-                    TextMessage textMessage = (TextMessage) message;
-                    try{
-                        String text = textMessage.getText();
-                        System.out.println("Message recu: " + text);
-                    } catch (JMSException e){
-                        e.printStackTrace();
-                    }
-                }
-                if(message instanceof ObjectMessage){
-                    ObjectMessage objectMessage = (ObjectMessage) message;
-                    Serializable data = null;
-                    try {
-                        data = objectMessage.getObject();
-                    } catch (JMSException e) {
-                        // TODO Auto-generated catch block
-                        e.printStackTrace();
-                    }
-                    /
-                    if(data instanceof Transaction){
-                        Transaction transaction = (Transaction) data;
-                        System.out.println(transaction.getSource());
-                    }
-
-                    //System.out.println(data);
-                }    
-            }
-        });
-    }*/
-
-    /* 
-    public void startListening() throws JMSException{
-        consumer.setMessageListener(message -> {
-            if(message instanceof ObjectMessage){
-                ObjectMessage objectMessage = (ObjectMessage) message;
-                try {
-                    Serializable data = objectMessage.getObject();
-                    if(data instanceof Transaction){
-                        if(transactionConsumer != null){
-                            transactionConsumer.accept((Transaction) data);
-                        }
-                    }
-                } catch (JMSException e){
-                    e.printStackTrace();
-                }
-            }
-        });
-    }*/
-
     public void startListening() throws JMSException{
         consumer.setMessageListener(message -> {
             try {
-                if(message instanceof TextMessage){
-                    TextMessage textMessage = (TextMessage) message;
-                    String text = textMessage.getText();
-                    if(textMessagConsumer != null){
-                        textMessagConsumer.accept(text);
-                    }
-                } else if(message instanceof ObjectMessage){
-                    ObjectMessage objectMessage = (ObjectMessage) message;
-                    Serializable data = objectMessage.getObject();
-                    if(data instanceof Transaction && transactionConsumer != null){
-                        transactionConsumer.accept((Transaction) data);
+                Thread.sleep(10000);
+                if(checkServer){
+                    if(message instanceof TextMessage){
+                        TextMessage textMessage = (TextMessage) message;
+                        String text = textMessage.getText();
+                        if(textMessagConsumer != null){
+                            textMessagConsumer.accept(text);
+                        }
+                    } else if(message instanceof ObjectMessage){
+                        ObjectMessage objectMessage = (ObjectMessage) message;
+                        Serializable data = objectMessage.getObject();
+                        if(data instanceof Transaction && transactionConsumer != null){
+                            transactionConsumer.accept((Transaction) data);
+                        }
                     }
                 }
-            } catch (Exception e) {
-                // TODO: handle exception
-                e.printStackTrace();
-            }
+                } catch (Exception e) {
+                    // TODO: handle exception
+                    e.printStackTrace();
+                }
+            
         });
     }
 
@@ -180,12 +138,14 @@ public class JMSManager {
         int max = 5;
         for(int i=0; i < max; i++){
             try{
+                
                 System.out.println("Tentative de reconnexion (" + (i+1) + "/" + max + ")");
                 connection = connectionFactory.createConnection();
                 connection.setExceptionListener(new ExceptionListener(){
                     @Override
                     public void onException(JMSException e){
                         System.err.println("Un problème de connexion a été détecté: " + e.getMessage());
+                        checkServer = false;
                         reconnect();
                     }
                 });
@@ -195,12 +155,14 @@ public class JMSManager {
                 consumer = session.createConsumer(srcQueue);
                 startListening();
                 System.out.println("Reconnexion réussie");
+                checkServer = true;
                 return;
             } catch(JMSException e){
                 System.err.println("La reconnexion a échoué: " + e.getMessage());
                 try {
+                    connection.close();
                     Thread.sleep(5000);
-                } catch (InterruptedException ignored) {
+                } catch (InterruptedException | JMSException e1) {
                     // TODO: handle exception
                 }
             }
